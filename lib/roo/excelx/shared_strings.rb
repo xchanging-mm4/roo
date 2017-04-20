@@ -110,7 +110,7 @@ module Roo
           case elem.name
           when 'rPr'
             elem.children.each do |rPr_elem|
-              rPr_elem_value = rPr_elem.xpath('@val').first.value
+              rPr_elem_value = rPr_elem.xpath('@val')&.first&.value
               apply = !rPr_elem_value.in?(NO_FORMATTING_VALUES)
 
               case rPr_elem.name
