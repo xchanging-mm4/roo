@@ -127,10 +127,22 @@ describe Roo::Base do
     end
   end
 
-  describe '#row' do
-    it 'should return the specified row' do
+  describe "#row" do
+    it "should return the specified row" do
       expect(spreadsheet.row(12)).to eq([41.0, 42.0, 43.0, 44.0, 45.0, nil, nil])
-      expect(spreadsheet.row(16)).to eq([nil, '"Hello world!"', 'forty-three', 'forty-four', 'forty-five', nil, nil])
+      expect(spreadsheet.row(16)).to eq([nil, '"Hello world!"', "forty-three", "forty-four", "forty-five", nil, nil])
+    end
+
+    it "should return the specified row if default_sheet is set by a string" do
+      spreadsheet.default_sheet = "my_sheet"
+      expect(spreadsheet.row(12)).to eq([41.0, 42.0, 43.0, 44.0, 45.0, nil, nil])
+      expect(spreadsheet.row(16)).to eq([nil, '"Hello world!"', "forty-three", "forty-four", "forty-five", nil, nil])
+    end
+
+    it "should return the specified row if default_sheet is set by an integer" do
+      spreadsheet.default_sheet = 0
+      expect(spreadsheet.row(12)).to eq([41.0, 42.0, 43.0, 44.0, 45.0, nil, nil])
+      expect(spreadsheet.row(16)).to eq([nil, '"Hello world!"', "forty-three", "forty-four", "forty-five", nil, nil])
     end
   end
 
@@ -145,6 +157,11 @@ describe Roo::Base do
       it 'raises an error' do
         expect { spreadsheet.row_with([/Missing Header/]) }.to \
           raise_error(Roo::HeaderRowNotFoundError)
+      end
+
+      it 'returns missing headers' do
+        expect { spreadsheet.row_with([/Header/, /Missing Header 1/, /Missing Header 2/]) }.to \
+          raise_error(Roo::HeaderRowNotFoundError, '[/Missing Header 1/, /Missing Header 2/]')
       end
     end
   end
@@ -165,11 +182,56 @@ describe Roo::Base do
     end
   end
 
+  describe '#each_with_pagename' do
+    context 'when block given' do
+      it 'iterate with sheet and sheet_name' do
+        sheet_names = []
+        spreadsheet.each_with_pagename do |sheet_name, sheet|
+          sheet_names << sheet_name
+        end
+        expect(sheet_names).to eq ['my_sheet', 'blank sheet']
+      end
+    end
+
+    context 'when called without block' do
+      it 'should return an enumerator with all the rows' do
+        each_with_pagename = spreadsheet.each_with_pagename
+        expect(each_with_pagename).to be_a(Enumerator)
+        expect(each_with_pagename.to_a.last).to eq([spreadsheet.default_sheet, spreadsheet])
+      end
+    end
+  end
+
   describe '#each' do
     it 'should return an enumerator with all the rows' do
       each = spreadsheet.each
       expect(each).to be_a(Enumerator)
       expect(each.to_a.last).to eq([nil, '"Hello world!"', 'forty-three', 'forty-four', 'forty-five', nil, nil])
+    end
+  end
+
+  describe "#default_sheet=" do
+    it "should correctly set the default sheet if passed a string" do
+      spreadsheet.default_sheet = "my_sheet"
+      expect(spreadsheet.default_sheet).to eq("my_sheet")
+    end
+
+    it "should correctly set the default sheet if passed an integer" do
+      spreadsheet.default_sheet = 0
+      expect(spreadsheet.default_sheet).to eq("my_sheet")
+    end
+
+    it "should correctly set the default sheet if passed an integer for the second sheet" do
+      spreadsheet.default_sheet = 1
+      expect(spreadsheet.default_sheet).to eq("blank sheet")
+    end
+
+    it "should raise an error if passed a sheet that does not exist as an integer" do
+      expect { spreadsheet.default_sheet = 10 }.to raise_error RangeError
+    end
+
+    it "should raise an error if passed a sheet that does not exist as a string" do
+      expect { spreadsheet.default_sheet = "does_not_exist" }.to raise_error RangeError
     end
   end
 
@@ -227,7 +289,21 @@ EOS
     end
 
     it 'should convert the spreadsheet to csv using the separator when is passed on the parameter' do
-      expect(spreadsheet.to_csv(nil, ';')).to eq(expected_csv_with_semicolons)
+      expect(spreadsheet.to_csv(separator: ';')).to eq(expected_csv_with_semicolons)
+    end
+
+    context 'should contains the deprecation warning message' do
+      it 'convert the spreadsheet to csv using the separator' do
+        converting =-> { spreadsheet.to_csv(nil, ';') }
+        expect(converting.call).to eq(expected_csv_with_semicolons)
+        expect(&converting).to output(/DEPRECATION.*:separator\b/).to_stderr
+      end
+
+      it 'be able to arguments: filename, separator, sheet' do
+        converting =-> { spreadsheet.to_csv(nil, ';', spreadsheet.default_sheet) }
+        expect(converting.call).to eq(expected_csv_with_semicolons)
+        expect(&converting).to output(/DEPRECATION.*:sheet\b/).to_stderr
+      end
     end
   end
 end

@@ -1,6 +1,6 @@
 # Roo
 
-[![Build Status](https://img.shields.io/travis/roo-rb/roo.svg?style=flat-square)](https://travis-ci.org/roo-rb/roo) [![Code Climate](https://img.shields.io/codeclimate/github/roo-rb/roo.svg?style=flat-square)](https://codeclimate.com/github/roo-rb/roo) [![Coverage Status](https://img.shields.io/coveralls/roo-rb/roo.svg?style=flat-square)](https://coveralls.io/r/roo-rb/roo) [![Gem Version](https://img.shields.io/gem/v/roo.svg?style=flat-square)](https://rubygems.org/gems/roo)
+[![Build Status](https://img.shields.io/travis/roo-rb/roo.svg?style=flat-square)](https://travis-ci.org/roo-rb/roo) [![Maintainability](https://api.codeclimate.com/v1/badges/be8d7bf34e2aeaf67c62/maintainability)](https://codeclimate.com/github/roo-rb/roo/maintainability) [![Coverage Status](https://img.shields.io/coveralls/roo-rb/roo.svg?style=flat-square)](https://coveralls.io/r/roo-rb/roo) [![Gem Version](https://img.shields.io/gem/v/roo.svg?style=flat-square)](https://rubygems.org/gems/roo)
 
 Roo implements read access for all common spreadsheet types. It can handle:
 * Excel 2007 - 2013 formats (xlsx, xlsm)
@@ -18,26 +18,41 @@ Install as a gem
 Or add it to your Gemfile
 
 ```ruby
-gem "roo", "~> 2.7.0"
+gem "roo", "~> 2.10.0"
 ```
 ## Usage
 
-Opening a spreadsheet
+### Opening a spreadsheet
 
+You can use the `Roo::Spreadsheet` class so `roo` automatically detects which [parser class](https://github.com/roo-rb/roo/blob/master/lib/roo.rb#L17) to use for you.
 ```ruby
 require 'roo'
 
-xlsx = Roo::Spreadsheet.open('./new_prices.xlsx')
-xlsx = Roo::Excelx.new("./new_prices.xlsx")
-
-# Use the extension option if the extension is ambiguous.
-xlsx = Roo::Spreadsheet.open('./rails_temp_upload', extension: :xlsx)
-
+file_name = './new_prices.xlsx'
+xlsx = Roo::Spreadsheet.open(file_name)
 xlsx.info
 # => Returns basic info about the spreadsheet file
 ```
 
-``Roo::Spreadsheet.open`` can accept both paths and ``File`` instances.
+``Roo::Spreadsheet.open`` can accept both string paths and ``File`` instances. Also, you can provide the extension of the file as an option: 
+
+```ruby
+require 'roo'
+
+file_name = './rails_temp_upload'
+xlsx = Roo::Spreadsheet.open(file_name, extension: :xlsx)
+xlsx.info
+# => Returns basic info about the spreadsheet file
+```
+
+On the other hand, if you know what the file extension is, you can use the specific parser class instead:
+```ruby
+require 'roo'
+
+xlsx = Roo::Excelx.new("./new_prices.xlsx")
+xlsx.info
+# => Returns basic info about the spreadsheet file
+```
 
 ### Working with sheets
 
@@ -89,13 +104,13 @@ sheet.last_column
 You can access the top-left cell in the following ways
 
 ```ruby
-s.cell(1,1)
-s.cell('A',1)
-s.cell(1,'A')
-s.a1
+sheet.cell(1,1)
+sheet.cell('A',1)
+sheet.cell(1,'A')
+sheet.a1
 
 # Access the second sheet's top-left cell.
-s.cell(1,'A',s.sheets[1])
+sheet.cell(1,'A',sheet.sheets[1])
 ```
 
 #### Querying a spreadsheet
@@ -117,6 +132,12 @@ sheet.parse(id: /UPC|SKU/, qty: /ATS*\sATP\s*QTY\z/)
 # => [{:id => 727880013358, :qty => 12}, ...]
 ```
 
+Use the ``:headers`` option to include the header row in the parsed content.
+
+```ruby
+sheet.parse(headers: true)
+```
+
 Use the ``:header_search`` option to locate the header row and assign the header names.
 
 ```ruby
@@ -129,6 +150,16 @@ Use the ``:clean`` option to strip out control characters and surrounding white 
 sheet.parse(clean: true)
 ```
 
+#### Options
+
+When opening the file you can add a hash of options.
+
+##### expand_merged_ranges
+If you open a document with merged cells and do not want to end up with nil values for the rows after the first one.
+```ruby
+xlsx = Roo::Excelx.new('./roo_error.xlsx', {:expand_merged_ranges => true})
+```
+
 ### Exporting spreadsheets
 Roo has the ability to export sheets using the following formats. It
 will only export the ``default_sheet``.
@@ -138,6 +169,18 @@ sheet.to_csv
 sheet.to_matrix
 sheet.to_xml
 sheet.to_yaml
+```
+
+Specify the file as default argument for `#to_csv`:
+
+```ruby
+sheet.to_csv(File.new("/dev/null"))
+```
+
+specify the custom separator:
+
+```ruby
+sheet.to_csv(separator: ":") # "," using by default
 ```
 
 ### Excel (xlsx and xlsm) Support
@@ -230,20 +273,32 @@ ods.formula('A', 2)
 
 ```ruby
 # Load a CSV file
-s = Roo::CSV.new("mycsv.csv")
+csv = Roo::CSV.new("mycsv.csv")
 ```
 
-Because Roo uses the [standard CSV library](), you can use options available to that library to parse csv files. You can pass options using the ``csv_options`` key.
+Because Roo uses the standard CSV library, you can use options available to that library to parse csv files. You can pass options using the ``csv_options`` key.
 
 For instance, you can load tab-delimited files (``.tsv``), and you can use a particular encoding when opening the file.
 
 
 ```ruby
 # Load a tab-delimited csv
-s = Roo::CSV.new("mytsv.tsv", csv_options: {col_sep: "\t"})
+csv = Roo::CSV.new("mytsv.tsv", csv_options: {col_sep: "\t"})
 
 # Load a csv with an explicit encoding
-s = Roo::CSV.new("mycsv.csv", csv_options: {encoding: Encoding::ISO_8859_1})
+csv = Roo::CSV.new("mycsv.csv", csv_options: {encoding: Encoding::ISO_8859_1})
+```
+
+You can also open csv files through the Roo::Spreadsheet class (useful if you accept both CSV and Excel types from a user file upload, for example).
+
+```ruby
+# Load a spreadsheet from a file path
+# Roo figures out the right parser based on file extension
+spreadsheet = Roo::Spreadsheet.open(csv_or_xlsx_file)
+
+# Load a csv and auto-strip the BOM (byte order mark)
+# csv files saved from MS Excel typically have the BOM marker at the beginning of the file
+spreadsheet = Roo::Spreadsheet.open("mycsv.csv", { csv_options: { encoding: 'bom|utf-8' } })
 ```
 
 ## Upgrading from Roo 1.13.x
@@ -255,7 +310,7 @@ Roo's public methods have stayed relatively consistent between 1.13.x and 2.0.0,
 
 ## Contributing
 ### Features
-1. Fork it ( https://github.com/[my-github-username]/roo/fork )
+1. Fork it ( https://github.com/roo-rb/roo/fork )
 2. Install it (`bundle install --with local_development`)
 3. Create your feature branch (`git checkout -b my-new-feature`)
 4. Commit your changes (`git commit -am 'My new feature'`)
@@ -271,9 +326,6 @@ You can run the tests/examples with Rspec like reporters by running
 
 Roo also has a few tests that take a long time (5+ seconds). To run these, use
 `LONG_RUN=true bundle exec rake`
-
-When testing using Ruby 2.0 or 2.1, use this command:
-`BUNDLE_GEMFILE=Gemfile_ruby2 bundle exec rake`
 
 ### Issues
 
